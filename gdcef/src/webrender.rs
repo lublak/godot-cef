@@ -1,14 +1,15 @@
-use cef::{self, rc::Rc, *,};
+use cef::{self, rc::Rc, *, sys::cef_cursor_type_t};
+use cef_app::CursorType;
 use godot::global::godot_print;
+use std::sync::{Arc, Mutex};
 
-/// Convert BGRA pixel data to RGBA by swapping B and R channels
 fn bgra_to_rgba(bgra: &[u8]) -> Vec<u8> {
     let mut rgba = Vec::with_capacity(bgra.len());
     for chunk in bgra.chunks_exact(4) {
-        rgba.push(chunk[2]); // R (from B)
-        rgba.push(chunk[1]); // G
-        rgba.push(chunk[0]); // B (from R)
-        rgba.push(chunk[3]); // A
+        rgba.push(chunk[2]);
+        rgba.push(chunk[1]);
+        rgba.push(chunk[0]);
+        rgba.push(chunk[3]);
     }
     rgba
 }
@@ -22,7 +23,6 @@ wrap_render_handler! {
         fn view_rect(&self, _browser: Option<&mut Browser>, rect: Option<&mut Rect>) {
             if let Some(rect) = rect {
                 if let Ok(size) = self.handler.size.lock() {
-                    // size must be non-zero
                     if size.width > 0.0 && size.height > 0.0 {
                         rect.width = size.width as _;
                         rect.height = size.height as _;
@@ -82,14 +82,9 @@ wrap_render_handler! {
             let width = width as u32;
             let height = height as u32;
             let buffer_size = (width * height * 4) as usize;
-
-            // Safety: CEF guarantees the buffer is valid for width * height * 4 bytes
             let bgra_data = unsafe { std::slice::from_raw_parts(buffer, buffer_size) };
-
-            // Convert BGRA to RGBA
             let rgba_data = bgra_to_rgba(bgra_data);
 
-            // Store in the shared frame buffer
             if let Ok(mut frame_buffer) = self.handler.frame_buffer.lock() {
                 frame_buffer.update(rgba_data, width, height);
             }
@@ -100,6 +95,61 @@ wrap_render_handler! {
 impl RenderHandlerBuilder {
     pub fn build(handler: cef_app::OsrRenderHandler) -> RenderHandler {
         Self::new(handler)
+    }
+}
+
+fn cef_cursor_to_cursor_type(cef_type: cef::sys::cef_cursor_type_t) -> CursorType {
+    match cef_type {
+        cef_cursor_type_t::CT_POINTER => CursorType::Arrow,
+        cef_cursor_type_t::CT_IBEAM => CursorType::IBeam,
+        cef_cursor_type_t::CT_HAND => CursorType::Hand,
+        cef_cursor_type_t::CT_CROSS => CursorType::Cross,
+        cef_cursor_type_t::CT_WAIT => CursorType::Wait,
+        cef_cursor_type_t::CT_HELP => CursorType::Help,
+        cef_cursor_type_t::CT_MOVE => CursorType::Move,
+        cef_cursor_type_t::CT_NORTHRESIZE
+        | cef_cursor_type_t::CT_SOUTHRESIZE
+        | cef_cursor_type_t::CT_NORTHSOUTHRESIZE => CursorType::ResizeNS,
+        cef_cursor_type_t::CT_EASTRESIZE
+        | cef_cursor_type_t::CT_WESTRESIZE
+        | cef_cursor_type_t::CT_EASTWESTRESIZE => CursorType::ResizeEW,
+        cef_cursor_type_t::CT_NORTHEASTRESIZE
+        | cef_cursor_type_t::CT_SOUTHWESTRESIZE
+        | cef_cursor_type_t::CT_NORTHEASTSOUTHWESTRESIZE => CursorType::ResizeNESW,
+        cef_cursor_type_t::CT_NORTHWESTRESIZE
+        | cef_cursor_type_t::CT_SOUTHEASTRESIZE
+        | cef_cursor_type_t::CT_NORTHWESTSOUTHEASTRESIZE => CursorType::ResizeNWSE,
+        cef_cursor_type_t::CT_NOTALLOWED => CursorType::NotAllowed,
+        cef_cursor_type_t::CT_PROGRESS => CursorType::Progress,
+        _ => CursorType::Arrow,
+    }
+}
+
+wrap_display_handler! {
+    pub(crate) struct DisplayHandlerBuilder {
+        cursor_type: Arc<Mutex<CursorType>>,
+    }
+
+    impl DisplayHandler {
+        fn on_cursor_change(
+            &self,
+            _browser: Option<&mut Browser>,
+            _cursor: *mut u8,
+            type_: cef::CursorType,
+            _custom_cursor_info: Option<&CursorInfo>,
+        ) -> i32 {
+            let cursor = cef_cursor_to_cursor_type(type_.into());
+            if let Ok(mut ct) = self.cursor_type.lock() {
+                *ct = cursor;
+            }
+            false as i32
+        }
+    }
+}
+
+impl DisplayHandlerBuilder {
+    pub fn build(cursor_type: Arc<Mutex<CursorType>>) -> DisplayHandler {
+        Self::new(cursor_type)
     }
 }
 
@@ -130,12 +180,17 @@ impl ContextMenuHandlerBuilder {
 wrap_client! {
     pub(crate) struct ClientBuilder {
         render_handler: RenderHandler,
+        display_handler: DisplayHandler,
         context_menu_handler: ContextMenuHandler,
     }
 
     impl Client {
         fn render_handler(&self) -> Option<cef::RenderHandler> {
             Some(self.render_handler.clone())
+        }
+
+        fn display_handler(&self) -> Option<cef::DisplayHandler> {
+            Some(self.display_handler.clone())
         }
 
         fn context_menu_handler(&self) -> Option<cef::ContextMenuHandler> {
@@ -146,8 +201,10 @@ wrap_client! {
 
 impl ClientBuilder {
     pub(crate) fn build(render_handler: cef_app::OsrRenderHandler) -> Client {
+        let cursor_type = render_handler.get_cursor_type();
         Self::new(
             RenderHandlerBuilder::build(render_handler),
+            DisplayHandlerBuilder::build(cursor_type),
             ContextMenuHandlerBuilder::build(),
         )
     }

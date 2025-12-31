@@ -3,11 +3,12 @@ mod utils;
 
 use cef::{BrowserSettings, ImplBrowser, ImplBrowserHost, MouseButtonType, MouseEvent, RequestContextSettings, Settings, WindowInfo, api_hash, quit_message_loop, run_message_loop};
 use cef::sys::cef_event_flags_t;
-use cef_app::FrameBuffer;
+use cef_app::{CursorType, FrameBuffer};
 use godot::classes::notify::ControlNotification;
 use godot::classes::{ITextureRect, Image, ImageTexture, InputEvent, InputEventMouseButton, InputEventMouseMotion, Os, TextureRect};
 use godot::classes::texture_rect::ExpandMode;
 use godot::classes::image::Format as ImageFormat;
+use godot::classes::control::CursorShape;
 use godot::global::{MouseButton, MouseButtonMask};
 use godot::init::*;
 use godot::prelude::*;
@@ -27,8 +28,10 @@ struct App {
     texture: Option<Gd<ImageTexture>>,
     render_size: Option<Arc<Mutex<PhysicalSize<f32>>>>,
     device_scale_factor: Option<Arc<Mutex<f32>>>,
+    cursor_type: Option<Arc<Mutex<CursorType>>>,
     last_size: Vector2,
     last_dpi: f32,
+    last_cursor: CursorType,
 }
 
 impl Default for App {
@@ -39,8 +42,10 @@ impl Default for App {
             texture: None,
             render_size: None,
             device_scale_factor: None,
+            cursor_type: None,
             last_size: Vector2::ZERO,
             last_dpi: 1.0,
+            last_cursor: CursorType::Arrow,
         }
     }
 }
@@ -193,6 +198,7 @@ impl CefTexture {
         self.app.texture = None;
         self.app.render_size = None;
         self.app.device_scale_factor = None;
+        self.app.cursor_type = None;
 
         if CEF_INITIALIZED.is_completed() {
             cef::shutdown();
@@ -203,6 +209,7 @@ impl CefTexture {
         let frame_buffer = render_handler.get_frame_buffer();
         let render_size = render_handler.get_size();
         let device_scale_factor = render_handler.get_device_scale_factor();
+        let cursor_type = render_handler.get_cursor_type();
 
         let texture = ImageTexture::new_gd();
         self.base_mut().set_texture(&texture);
@@ -211,6 +218,7 @@ impl CefTexture {
         self.app.texture = Some(texture);
         self.app.render_size = Some(render_size);
         self.app.device_scale_factor = Some(device_scale_factor);
+        self.app.cursor_type = Some(cursor_type);
         self.app.last_size = self.base().get_rect().size;
         self.app.last_dpi = initial_dpi;
     }
@@ -291,6 +299,7 @@ impl CefTexture {
         quit_message_loop();
 
         self.update_texture_from_buffer();
+        self.update_cursor();
         self.request_external_begin_frame();
     }
 
@@ -403,6 +412,44 @@ impl CefTexture {
         }
     }
 
+    fn update_cursor(&mut self) {
+        let cursor_type_arc = match &self.app.cursor_type {
+            Some(arc) => arc.clone(),
+            None => return,
+        };
+
+        let current_cursor = match cursor_type_arc.lock() {
+            Ok(cursor_type) => *cursor_type,
+            Err(_) => return,
+        };
+
+        if current_cursor == self.app.last_cursor {
+            return;
+        }
+
+        self.app.last_cursor = current_cursor;
+        let shape = Self::cursor_type_to_shape(current_cursor);
+        self.base_mut().set_default_cursor_shape(shape);
+    }
+
+    fn cursor_type_to_shape(cursor_type: CursorType) -> CursorShape {
+        match cursor_type {
+            CursorType::Arrow => CursorShape::ARROW,
+            CursorType::IBeam => CursorShape::IBEAM,
+            CursorType::Hand => CursorShape::POINTING_HAND,
+            CursorType::Cross => CursorShape::CROSS,
+            CursorType::Wait => CursorShape::WAIT,
+            CursorType::Help => CursorShape::HELP,
+            CursorType::Move => CursorShape::MOVE,
+            CursorType::ResizeNS => CursorShape::VSIZE,
+            CursorType::ResizeEW => CursorShape::HSIZE,
+            CursorType::ResizeNESW => CursorShape::BDIAGSIZE,
+            CursorType::ResizeNWSE => CursorShape::FDIAGSIZE,
+            CursorType::NotAllowed => CursorShape::FORBIDDEN,
+            CursorType::Progress => CursorShape::BUSY,
+        }
+    }
+
     fn handle_input_event(&mut self, event: Gd<InputEvent>) {
         if let Ok(mouse_button) = event.clone().try_cast::<InputEventMouseButton>() {
             self.handle_mouse_button_event(&mouse_button);
@@ -436,27 +483,19 @@ impl CefTexture {
                 host.send_mouse_click_event(Some(&mouse_event), button_type, mouse_up as i32, click_count);
             }
             MouseButton::WHEEL_UP => {
-                let factor = event.get_factor();
-                let delta = (120.0 * factor) as i32;
-                godot_print!("WHEEL_UP: factor={}, delta={}", factor, delta);
+                let delta = (120.0 * event.get_factor()) as i32;
                 host.send_mouse_wheel_event(Some(&mouse_event), 0, delta);
             }
             MouseButton::WHEEL_DOWN => {
-                let factor = event.get_factor();
-                let delta = (120.0 * factor) as i32;
-                godot_print!("WHEEL_DOWN: factor={}, delta={}", factor, delta);
+                let delta = (120.0 * event.get_factor()) as i32;
                 host.send_mouse_wheel_event(Some(&mouse_event), 0, -delta);
             }
             MouseButton::WHEEL_LEFT => {
-                let factor = event.get_factor();
-                let delta = (120.0 * factor) as i32;
-                godot_print!("WHEEL_LEFT: factor={}, delta={}", factor, delta);
+                let delta = (120.0 * event.get_factor()) as i32;
                 host.send_mouse_wheel_event(Some(&mouse_event), -delta, 0);
             }
             MouseButton::WHEEL_RIGHT => {
-                let factor = event.get_factor();
-                let delta = (120.0 * factor) as i32;
-                godot_print!("WHEEL_RIGHT: factor={}, delta={}", factor, delta);
+                let delta = (120.0 * event.get_factor()) as i32;
                 host.send_mouse_wheel_event(Some(&mouse_event), delta, 0);
             }
             _ => {}

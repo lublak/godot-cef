@@ -125,11 +125,30 @@ impl BrowserProcessHandlerBuilder {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum CursorType {
+    #[default]
+    Arrow,
+    IBeam,
+    Hand,
+    Cross,
+    Wait,
+    Help,
+    Move,
+    ResizeNS,
+    ResizeEW,
+    ResizeNESW,
+    ResizeNWSE,
+    NotAllowed,
+    Progress,
+}
+
 #[derive(Clone)]
 pub struct OsrRenderHandler {
     pub device_scale_factor: Arc<Mutex<f32>>,
     pub size: Arc<Mutex<winit::dpi::PhysicalSize<f32>>>,
     pub frame_buffer: Arc<Mutex<FrameBuffer>>,
+    pub cursor_type: Arc<Mutex<CursorType>>,
 }
 
 impl OsrRenderHandler {
@@ -141,6 +160,7 @@ impl OsrRenderHandler {
             size: Arc::new(Mutex::new(size)),
             device_scale_factor: Arc::new(Mutex::new(device_scale_factor)),
             frame_buffer: Arc::new(Mutex::new(FrameBuffer::new())),
+            cursor_type: Arc::new(Mutex::new(CursorType::default())),
         }
     }
 
@@ -154,5 +174,9 @@ impl OsrRenderHandler {
 
     pub fn get_device_scale_factor(&self) -> Arc<Mutex<f32>> {
         self.device_scale_factor.clone()
+    }
+
+    pub fn get_cursor_type(&self) -> Arc<Mutex<CursorType>> {
+        self.cursor_type.clone()
     }
 }
