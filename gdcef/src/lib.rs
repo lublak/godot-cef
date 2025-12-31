@@ -9,7 +9,7 @@ use godot::classes::texture_rect::ExpandMode;
 use godot::classes::image::Format as ImageFormat;
 use godot::init::*;
 use godot::prelude::*;
-use winit::dpi::LogicalSize;
+use winit::dpi::{PhysicalSize};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Once};
 
@@ -23,7 +23,7 @@ struct App {
     browser: Option<cef::Browser>,
     frame_buffer: Option<Arc<Mutex<FrameBuffer>>>,
     texture: Option<Gd<ImageTexture>>,
-    render_size: Option<Arc<Mutex<LogicalSize<f32>>>>,
+    render_size: Option<Arc<Mutex<PhysicalSize<f32>>>>,
     device_scale_factor: Option<Arc<Mutex<f32>>>,
     last_size: Vector2,
     last_dpi: f32,
@@ -206,15 +206,17 @@ impl CefTexture {
     }
 
     fn create_browser(&mut self) {
-        let size = self.base().get_rect().size;
+        let logical_size = self.base().get_rect().size;
         let dpi = self.get_content_scale_factor();
+        let pixel_width = (logical_size.x * dpi) as i32;
+        let pixel_height = (logical_size.y * dpi) as i32;
         
         let window_info = WindowInfo {
             bounds: cef::Rect {
                 x: 0 as _,
                 y: 0 as _,
-                width: size.x as _,
-                height: size.y as _,
+                width: pixel_width as _,
+                height: pixel_height as _,
             },
             windowless_rendering_enabled: true as _,
             shared_texture_enabled: false as _,
@@ -223,7 +225,6 @@ impl CefTexture {
         };
 
         let browser_settings = BrowserSettings {
-            // windowless_frame_rate: 60, // FIXME: should be dynamic
             ..Default::default()
         };
 
@@ -234,7 +235,7 @@ impl CefTexture {
 
         let render_handler = cef_app::OsrRenderHandler::new(
             dpi,
-            LogicalSize::new(size.x as f32, size.y as f32)
+            PhysicalSize::new(pixel_width as f32, pixel_height as f32)
         );
         self.create_texture_and_buffer(&render_handler, dpi);
         
@@ -304,9 +305,22 @@ impl CefTexture {
             }
         }
 
+        // DPI change means physical pixel count changed, update render size
+        let logical_size = self.base().get_rect().size;
+        let pixel_width = logical_size.x * current_dpi;
+        let pixel_height = logical_size.y * current_dpi;
+
+        if let Some(render_size) = &self.app.render_size {
+            if let Ok(mut size) = render_size.lock() {
+                size.width = pixel_width;
+                size.height = pixel_height;
+            }
+        }
+
         if let Some(browser) = self.app.browser.as_mut() {
             if let Some(host) = browser.host() {
                 host.notify_screen_info_changed();
+                host.was_resized();
             }
         }
 
@@ -314,21 +328,25 @@ impl CefTexture {
     }
 
     fn handle_size_change(&mut self) {
-        let current_size = self.base().get_rect().size;
-        if current_size.x <= 0.0 || current_size.y <= 0.0 {
+        let logical_size = self.base().get_rect().size;
+        if logical_size.x <= 0.0 || logical_size.y <= 0.0 {
             return;
         }
 
         // 1px tolerance to avoid resize loops
-        let size_diff = (current_size - self.app.last_size).abs();
+        let size_diff = (logical_size - self.app.last_size).abs();
         if size_diff.x < 1.0 && size_diff.y < 1.0 {
             return;
         }
 
+        let dpi = self.get_content_scale_factor();
+        let pixel_width = logical_size.x * dpi;
+        let pixel_height = logical_size.y * dpi;
+
         if let Some(render_size) = &self.app.render_size {
             if let Ok(mut size) = render_size.lock() {
-                size.width = current_size.x;
-                size.height = current_size.y;
+                size.width = pixel_width;
+                size.height = pixel_height;
             }
         }
 
@@ -338,7 +356,7 @@ impl CefTexture {
             }
         }
 
-        self.app.last_size = current_size;
+        self.app.last_size = logical_size;
     }
 
     fn update_texture_from_buffer(&mut self) {

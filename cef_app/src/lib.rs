@@ -128,14 +128,14 @@ impl BrowserProcessHandlerBuilder {
 #[derive(Clone)]
 pub struct OsrRenderHandler {
     pub device_scale_factor: Arc<Mutex<f32>>,
-    pub size: Arc<Mutex<winit::dpi::LogicalSize<f32>>>,
+    pub size: Arc<Mutex<winit::dpi::PhysicalSize<f32>>>,
     pub frame_buffer: Arc<Mutex<FrameBuffer>>,
 }
 
 impl OsrRenderHandler {
     pub fn new(
         device_scale_factor: f32,
-        size: winit::dpi::LogicalSize<f32>,
+        size: winit::dpi::PhysicalSize<f32>,
     ) -> Self {
         Self {
             size: Arc::new(Mutex::new(size)),
@@ -148,7 +148,7 @@ impl OsrRenderHandler {
         self.frame_buffer.clone()
     }
 
-    pub fn get_size(&self) -> Arc<Mutex<winit::dpi::LogicalSize<f32>>> {
+    pub fn get_size(&self) -> Arc<Mutex<winit::dpi::PhysicalSize<f32>>> {
         self.size.clone()
     }
 
