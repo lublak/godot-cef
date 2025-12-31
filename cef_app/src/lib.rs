@@ -127,7 +127,7 @@ impl BrowserProcessHandlerBuilder {
 
 #[derive(Clone)]
 pub struct OsrRenderHandler {
-    pub device_scale_factor: f32,
+    pub device_scale_factor: Arc<Mutex<f32>>,
     pub size: Arc<Mutex<winit::dpi::LogicalSize<f32>>>,
     pub frame_buffer: Arc<Mutex<FrameBuffer>>,
 }
@@ -139,13 +139,20 @@ impl OsrRenderHandler {
     ) -> Self {
         Self {
             size: Arc::new(Mutex::new(size)),
-            device_scale_factor,
+            device_scale_factor: Arc::new(Mutex::new(device_scale_factor)),
             frame_buffer: Arc::new(Mutex::new(FrameBuffer::new())),
         }
     }
 
-    /// Get a clone of the frame buffer Arc for sharing with Godot
     pub fn get_frame_buffer(&self) -> Arc<Mutex<FrameBuffer>> {
         self.frame_buffer.clone()
+    }
+
+    pub fn get_size(&self) -> Arc<Mutex<winit::dpi::LogicalSize<f32>>> {
+        self.size.clone()
+    }
+
+    pub fn get_device_scale_factor(&self) -> Arc<Mutex<f32>> {
+        self.device_scale_factor.clone()
     }
 }

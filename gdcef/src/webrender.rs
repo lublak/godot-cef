@@ -37,8 +37,10 @@ wrap_render_handler! {
             screen_info: Option<&mut ScreenInfo>,
         ) -> ::std::os::raw::c_int {
             if let Some(screen_info) = screen_info {
-                screen_info.device_scale_factor = self.handler.device_scale_factor;
-                return true as _;
+                if let Ok(scale) = self.handler.device_scale_factor.lock() {
+                    screen_info.device_scale_factor = *scale;
+                    return true as _;
+                }
             }
             false as _
         }

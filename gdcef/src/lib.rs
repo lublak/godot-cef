@@ -5,6 +5,7 @@ use cef::{BrowserSettings, ImplBrowser, ImplBrowserHost, RequestContextSettings,
 use cef_app::FrameBuffer;
 use godot::classes::notify::ControlNotification;
 use godot::classes::{ITextureRect, Image, ImageTexture, Os, TextureRect};
+use godot::classes::texture_rect::ExpandMode;
 use godot::classes::image::Format as ImageFormat;
 use godot::init::*;
 use godot::prelude::*;
@@ -22,6 +23,10 @@ struct App {
     browser: Option<cef::Browser>,
     frame_buffer: Option<Arc<Mutex<FrameBuffer>>>,
     texture: Option<Gd<ImageTexture>>,
+    render_size: Option<Arc<Mutex<LogicalSize<f32>>>>,
+    device_scale_factor: Option<Arc<Mutex<f32>>>,
+    last_size: Vector2,
+    last_dpi: f32,
 }
 
 impl Default for App {
@@ -30,6 +35,10 @@ impl Default for App {
             browser: None,
             frame_buffer: None,
             texture: None,
+            render_size: None,
+            device_scale_factor: None,
+            last_size: Vector2::ZERO,
+            last_dpi: 1.0,
         }
     }
 }
@@ -172,14 +181,34 @@ impl CefTexture {
         self.app.browser = None;
         self.app.frame_buffer = None;
         self.app.texture = None;
+        self.app.render_size = None;
+        self.app.device_scale_factor = None;
 
         if CEF_INITIALIZED.is_completed() {
             cef::shutdown();
         }
     }
 
+    fn create_texture_and_buffer(&mut self, render_handler: &cef_app::OsrRenderHandler, initial_dpi: f32) {
+        let frame_buffer = render_handler.get_frame_buffer();
+        let render_size = render_handler.get_size();
+        let device_scale_factor = render_handler.get_device_scale_factor();
+
+        let texture = ImageTexture::new_gd();
+        self.base_mut().set_texture(&texture);
+
+        self.app.frame_buffer = Some(frame_buffer);
+        self.app.texture = Some(texture);
+        self.app.render_size = Some(render_size);
+        self.app.device_scale_factor = Some(device_scale_factor);
+        self.app.last_size = self.base().get_rect().size;
+        self.app.last_dpi = initial_dpi;
+    }
+
     fn create_browser(&mut self) {
-        let size = self.base().get_size();
+        let size = self.base().get_rect().size;
+        let dpi = self.get_content_scale_factor();
+        
         let window_info = WindowInfo {
             bounds: cef::Rect {
                 x: 0 as _,
@@ -203,12 +232,11 @@ impl CefTexture {
             Some(&mut webrender::RequestContextHandlerBuilder::build(webrender::OsrRequestContextHandler {})),
         );
 
-        // Create the render handler and get a reference to its frame buffer
         let render_handler = cef_app::OsrRenderHandler::new(
-            1.0,
+            dpi,
             LogicalSize::new(size.x as f32, size.y as f32)
         );
-        let frame_buffer = render_handler.get_frame_buffer();
+        self.create_texture_and_buffer(&render_handler, dpi);
         
         let mut client = webrender::ClientBuilder::build(render_handler);
 
@@ -223,81 +251,128 @@ impl CefTexture {
 
         assert!(browser.is_some(), "failed to create browser");
 
-        // Create the ImageTexture that will display CEF frames
-        let texture = ImageTexture::new_gd();
-        self.base_mut().set_texture(&texture);
-
         self.app.browser = browser;
-        self.app.frame_buffer = Some(frame_buffer);
-        self.app.texture = Some(texture);
     }
 
     fn on_ready(&mut self) {
+        self.base_mut().set_expand_mode(ExpandMode::IGNORE_SIZE);
+
         CEF_INITIALIZED.call_once(|| {
             Self::load_cef_framework();
             Self::initialize_cef();
         });
 
         self.create_browser();
+        self.request_external_begin_frame();
     }
 
     fn on_process(&mut self) {
-        run_message_loop();
-        quit_message_loop();
+        self.handle_size_change();
+        self.handle_dpi_change();
 
         if let Some(browser) = self.app.browser.as_mut() {
-            // TODO: resize handling
-
             if let Some(host) = browser.host() {
                 host.send_external_begin_frame();
             }
         }
 
-        // Update texture from frame buffer if dirty
+        run_message_loop();
+        quit_message_loop();
+
         self.update_texture_from_buffer();
+        self.request_external_begin_frame();
+    }
+
+    fn get_content_scale_factor(&self) -> f32 {
+        if let Some(tree) = self.base().get_tree() {
+            if let Some(window) = tree.get_root() {
+                return window.get_content_scale_factor();
+            }
+        }
+        1.0
+    }
+
+    fn handle_dpi_change(&mut self) {
+        let current_dpi = self.get_content_scale_factor();
+        if (current_dpi - self.app.last_dpi).abs() < 0.01 {
+            return;
+        }
+
+        if let Some(device_scale_factor) = &self.app.device_scale_factor {
+            if let Ok(mut dpi) = device_scale_factor.lock() {
+                *dpi = current_dpi;
+            }
+        }
+
+        if let Some(browser) = self.app.browser.as_mut() {
+            if let Some(host) = browser.host() {
+                host.notify_screen_info_changed();
+            }
+        }
+
+        self.app.last_dpi = current_dpi;
+    }
+
+    fn handle_size_change(&mut self) {
+        let current_size = self.base().get_rect().size;
+        if current_size.x <= 0.0 || current_size.y <= 0.0 {
+            return;
+        }
+
+        // 1px tolerance to avoid resize loops
+        let size_diff = (current_size - self.app.last_size).abs();
+        if size_diff.x < 1.0 && size_diff.y < 1.0 {
+            return;
+        }
+
+        if let Some(render_size) = &self.app.render_size {
+            if let Ok(mut size) = render_size.lock() {
+                size.width = current_size.x;
+                size.height = current_size.y;
+            }
+        }
+
+        if let Some(browser) = self.app.browser.as_mut() {
+            if let Some(host) = browser.host() {
+                host.was_resized();
+            }
+        }
+
+        self.app.last_size = current_size;
     }
 
     fn update_texture_from_buffer(&mut self) {
         let Some(frame_buffer_arc) = &self.app.frame_buffer else {
             return;
         };
-
         let Some(texture) = &mut self.app.texture else {
             return;
         };
-
-        // Try to lock the frame buffer
         let Ok(mut frame_buffer) = frame_buffer_arc.lock() else {
             return;
         };
-
-        // Only update if the buffer has new data
         if !frame_buffer.dirty || frame_buffer.data.is_empty() {
             return;
         }
 
         let width = frame_buffer.width as i32;
         let height = frame_buffer.height as i32;
-
-        // Create a PackedByteArray from the RGBA data
         let byte_array = PackedByteArray::from(frame_buffer.data.as_slice());
 
-        // Create a Godot Image from the raw RGBA data
-        let image = Image::create_from_data(
-            width,
-            height,
-            false, // no mipmaps
-            ImageFormat::RGBA8,
-            &byte_array,
-        );
-
+        let image = Image::create_from_data(width, height, false, ImageFormat::RGBA8, &byte_array);
         if let Some(image) = image {
-            // Update the ImageTexture with the new image
             texture.set_image(&image);
         }
 
-        // Mark the buffer as consumed
         frame_buffer.mark_clean();
+    }
+
+    fn request_external_begin_frame(&mut self) {
+        if let Some(browser) = self.app.browser.as_mut() {
+            if let Some(host) = browser.host() {
+                host.send_external_begin_frame();
+            }
+        }
     }
 }
 
