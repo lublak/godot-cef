@@ -44,10 +44,12 @@ fn load_sandbox(args: &MainArgs) {
 
     unsafe {
         let lib = Library::new(path).unwrap();
-        let func = lib.get::<unsafe extern "C" fn(
-            argc: std::os::raw::c_int,
-            argv: *mut *mut ::std::os::raw::c_char,
-        )>(b"cef_sandbox_initialize\0").unwrap();
+        let func =
+            lib.get::<unsafe extern "C" fn(
+                argc: std::os::raw::c_int,
+                argv: *mut *mut ::std::os::raw::c_char,
+            )>(b"cef_sandbox_initialize\0")
+                .unwrap();
         func(args.argc, args.argv);
     }
 }

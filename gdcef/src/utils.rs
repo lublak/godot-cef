@@ -1,5 +1,5 @@
-use std::{io::Error, path::PathBuf};
 use process_path::get_dylib_path;
+use std::{io::Error, path::PathBuf};
 
 #[cfg(target_os = "macos")]
 pub fn get_framework_path() -> Result<PathBuf, Error> {
@@ -36,10 +36,7 @@ pub fn get_subprocess_path() -> Result<PathBuf, Error> {
 
     // current dylib path is project/addons/godot_cef/bin/x86_64-pc-windows-msvc/gdcef.dll
     // subprocess is at project/addons/godot_cef/bin/x86_64-pc-windows-msvc/gdcef_helper.exe
-    dylib_path
-        .unwrap()
-        .join("gdcef_helper.exe")
-        .canonicalize()
+    dylib_path.unwrap().join("gdcef_helper.exe").canonicalize()
 }
 
 #[cfg(target_os = "linux")]
@@ -48,8 +45,5 @@ pub fn get_subprocess_path() -> Result<PathBuf, Error> {
 
     // current dylib path is project/addons/godot_cef/bin/x86_64-unknown-linux-gnu/libgdcef.so
     // subprocess is at project/addons/godot_cef/bin/x86_64-unknown-linux-gnu/gdcef_helper
-    dylib_path
-        .unwrap()
-        .join("gdcef_helper")
-        .canonicalize()
+    dylib_path.unwrap().join("gdcef_helper").canonicalize()
 }

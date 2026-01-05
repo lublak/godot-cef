@@ -19,4 +19,3 @@ pub fn cursor_type_to_shape(cursor_type: CursorType) -> CursorShape {
         CursorType::Progress => CursorShape::BUSY,
     }
 }
-

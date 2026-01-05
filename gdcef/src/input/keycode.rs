@@ -319,10 +319,10 @@ pub fn godot_key_to_native_keycode(key: Key) -> i32 {
         Key::TAB => 23,
         Key::ENTER => 36,
         Key::SPACE => 65,
-        Key::SHIFT => 50,        // Left Shift
-        Key::CTRL => 37,         // Left Ctrl
-        Key::ALT => 64,          // Left Alt
-        Key::META => 133,        // Left Super/Windows
+        Key::SHIFT => 50, // Left Shift
+        Key::CTRL => 37,  // Left Ctrl
+        Key::ALT => 64,   // Left Alt
+        Key::META => 133, // Left Super/Windows
         Key::CAPSLOCK => 66,
         Key::NUMLOCK => 77,
         Key::SCROLLLOCK => 78,

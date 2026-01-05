@@ -1,25 +1,25 @@
 use super::{NativeHandleTrait, RenderBackend, SharedTextureInfo, TextureImporterTrait};
 use cef::AcceleratedPaintInfo;
+use godot::classes::RenderingServer;
 use godot::classes::image::Format as ImageFormat;
 use godot::classes::rendering_server::TextureType;
-use godot::classes::RenderingServer;
 use godot::global::{godot_error, godot_print, godot_warn};
 use godot::prelude::*;
 use std::ffi::c_void;
-use windows::core::Interface;
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Graphics::Direct3D::D3D_FEATURE_LEVEL_12_0;
 use windows::Win32::Graphics::Direct3D12::{
-    D3D12CreateDevice, ID3D12Device, ID3D12Resource, D3D12_RESOURCE_DESC,
-    D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-};
-use windows::Win32::Graphics::Dxgi::{
-    CreateDXGIFactory2, IDXGIAdapter1, IDXGIFactory4, DXGI_ADAPTER_FLAG,
-    DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_CREATE_FACTORY_FLAGS,
+    D3D12_RESOURCE_DESC, D3D12_RESOURCE_DIMENSION_TEXTURE2D, D3D12CreateDevice, ID3D12Device,
+    ID3D12Resource,
 };
 use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM,
 };
+use windows::Win32::Graphics::Dxgi::{
+    CreateDXGIFactory2, DXGI_ADAPTER_FLAG, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_CREATE_FACTORY_FLAGS,
+    IDXGIAdapter1, IDXGIFactory4,
+};
+use windows::core::Interface;
 
 const COLOR_SWAP_SHADER: &str = r#"
 shader_type canvas_item;
@@ -92,31 +92,54 @@ impl NativeTextureImporter {
     pub fn new() -> Option<Self> {
         // Create DXGI factory
         let factory: IDXGIFactory4 = unsafe { CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS(0)) }
-            .map_err(|e| godot_error!("[AcceleratedOSR/Windows] Failed to create DXGI factory: {:?}", e))
+            .map_err(|e| {
+                godot_error!(
+                    "[AcceleratedOSR/Windows] Failed to create DXGI factory: {:?}",
+                    e
+                )
+            })
             .ok()?;
 
         // Find a suitable hardware adapter
         let adapter = Self::get_hardware_adapter(&factory)?;
         let adapter_desc = unsafe { adapter.GetDesc1() }
-            .map_err(|e| godot_error!("[AcceleratedOSR/Windows] Failed to get adapter description: {:?}", e))
+            .map_err(|e| {
+                godot_error!(
+                    "[AcceleratedOSR/Windows] Failed to get adapter description: {:?}",
+                    e
+                )
+            })
             .ok()?;
 
         let adapter_name = String::from_utf16_lossy(
-            &adapter_desc.Description[..adapter_desc.Description.iter().position(|&c| c == 0).unwrap_or(adapter_desc.Description.len())]
+            &adapter_desc.Description[..adapter_desc
+                .Description
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(adapter_desc.Description.len())],
         );
 
         // Create D3D12 device
         let mut device: Option<ID3D12Device> = None;
-        unsafe {
-            D3D12CreateDevice(&adapter, D3D_FEATURE_LEVEL_12_0, &mut device)
-        }
-        .map_err(|e| godot_error!("[AcceleratedOSR/Windows] Failed to create D3D12 device: {:?}", e))
-        .ok()?;
+        unsafe { D3D12CreateDevice(&adapter, D3D_FEATURE_LEVEL_12_0, &mut device) }
+            .map_err(|e| {
+                godot_error!(
+                    "[AcceleratedOSR/Windows] Failed to create D3D12 device: {:?}",
+                    e
+                )
+            })
+            .ok()?;
 
         let device = device?;
-        godot_print!("[AcceleratedOSR/Windows] Created D3D12 device on adapter: {}", adapter_name);
+        godot_print!(
+            "[AcceleratedOSR/Windows] Created D3D12 device on adapter: {}",
+            adapter_name
+        );
 
-        Some(Self { device, adapter_name })
+        Some(Self {
+            device,
+            adapter_name,
+        })
     }
 
     fn get_hardware_adapter(factory: &IDXGIFactory4) -> Option<IDXGIAdapter1> {
@@ -179,11 +202,11 @@ impl NativeTextureImporter {
 
         // Open the shared handle to get the D3D12 resource
         let mut resource: Option<ID3D12Resource> = None;
-        unsafe {
-            self.device.OpenSharedHandle(handle, &mut resource)
-        }.map_err(|e| format!("Failed to open shared handle: {:?}", e))?;
+        unsafe { self.device.OpenSharedHandle(handle, &mut resource) }
+            .map_err(|e| format!("Failed to open shared handle: {:?}", e))?;
 
-        let resource = resource.ok_or_else(|| "OpenSharedHandle returned null resource".to_string())?;
+        let resource =
+            resource.ok_or_else(|| "OpenSharedHandle returned null resource".to_string())?;
 
         // Validate the resource description
         let desc: D3D12_RESOURCE_DESC = unsafe { resource.GetDesc() };

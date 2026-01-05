@@ -13,7 +13,9 @@ impl NativeHandle {
     }
 
     pub fn from_fd(fd: i32) -> Self {
-        Self { fd: if fd < 0 { -1 } else { fd } }
+        Self {
+            fd: if fd < 0 { -1 } else { fd },
+        }
     }
 }
 

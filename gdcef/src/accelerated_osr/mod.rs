@@ -1,9 +1,9 @@
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
-#[cfg(target_os = "linux")]
-mod linux;
 
 use cef::{AcceleratedPaintInfo, PaintElementType};
 use godot::classes::RenderingServer;
@@ -11,12 +11,12 @@ use godot::global::godot_print;
 use godot::prelude::*;
 use std::sync::{Arc, Mutex};
 
+#[cfg(target_os = "linux")]
+pub use linux::GodotTextureImporter;
 #[cfg(target_os = "macos")]
 pub use macos::GodotTextureImporter;
 #[cfg(target_os = "windows")]
 pub use windows::GodotTextureImporter;
-#[cfg(target_os = "linux")]
-pub use linux::GodotTextureImporter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenderBackend {

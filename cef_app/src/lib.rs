@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
-use cef::{self, BrowserProcessHandler, ImplBrowserProcessHandler, WrapBrowserProcessHandler, rc::Rc, *,};
+use cef::{
+    self, BrowserProcessHandler, ImplBrowserProcessHandler, WrapBrowserProcessHandler, rc::Rc, *,
+};
 
 #[derive(Default)]
 pub struct FrameBuffer {
@@ -198,10 +200,7 @@ pub struct OsrRenderHandler {
 }
 
 impl OsrRenderHandler {
-    pub fn new(
-        device_scale_factor: f32,
-        size: winit::dpi::PhysicalSize<f32>,
-    ) -> Self {
+    pub fn new(device_scale_factor: f32, size: winit::dpi::PhysicalSize<f32>) -> Self {
         Self {
             size: Arc::new(Mutex::new(size)),
             device_scale_factor: Arc::new(Mutex::new(device_scale_factor)),

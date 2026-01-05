@@ -1,21 +1,24 @@
-use cef::{ImplBrowserHost, KeyEvent, KeyEventType, MouseButtonType, MouseEvent};
 use cef::sys::cef_event_flags_t;
-use godot::classes::{InputEventKey, InputEventMouseButton, InputEventMouseMotion, InputEventPanGesture};
+use cef::{ImplBrowserHost, KeyEvent, KeyEventType, MouseButtonType, MouseEvent};
+use godot::classes::{
+    InputEventKey, InputEventMouseButton, InputEventMouseMotion, InputEventPanGesture,
+};
 use godot::global::{Key, MouseButton, MouseButtonMask};
 use godot::prelude::*;
 
 mod keycode;
 
 /// Creates a CEF mouse event from Godot position and DPI scale
-pub fn create_mouse_event(position: Vector2, pixel_scale_factor: f32, device_scale_factor: f32, modifiers: u32) -> MouseEvent {
+pub fn create_mouse_event(
+    position: Vector2,
+    pixel_scale_factor: f32,
+    device_scale_factor: f32,
+    modifiers: u32,
+) -> MouseEvent {
     let x = (position.x * pixel_scale_factor / device_scale_factor) as i32;
     let y = (position.y * pixel_scale_factor / device_scale_factor) as i32;
 
-    MouseEvent {
-        x,
-        y,
-        modifiers,
-    }
+    MouseEvent { x, y, modifiers }
 }
 
 /// Handles mouse button events and sends them to CEF browser host
@@ -25,8 +28,13 @@ pub fn handle_mouse_button(
     pixel_scale_factor: f32,
     device_scale_factor: f32,
 ) {
-    let position = event.get_position() ;
-    let mouse_event = create_mouse_event(position, pixel_scale_factor, device_scale_factor, get_modifiers_from_button_event(event));
+    let position = event.get_position();
+    let mouse_event = create_mouse_event(
+        position,
+        pixel_scale_factor,
+        device_scale_factor,
+        get_modifiers_from_button_event(event),
+    );
 
     match event.get_button_index() {
         MouseButton::LEFT | MouseButton::MIDDLE | MouseButton::RIGHT => {
@@ -38,7 +46,12 @@ pub fn handle_mouse_button(
             };
             let mouse_up = !event.is_pressed();
             let click_count = if event.is_double_click() { 2 } else { 1 };
-            host.send_mouse_click_event(Some(&mouse_event), button_type, mouse_up as i32, click_count);
+            host.send_mouse_click_event(
+                Some(&mouse_event),
+                button_type,
+                mouse_up as i32,
+                click_count,
+            );
         }
         MouseButton::WHEEL_UP => {
             let delta = (120.0 * event.get_factor()) as i32;
@@ -68,7 +81,12 @@ pub fn handle_mouse_motion(
     device_scale_factor: f32,
 ) {
     let position = event.get_position();
-    let mouse_event = create_mouse_event(position, pixel_scale_factor, device_scale_factor, get_modifiers_from_motion_event(event));
+    let mouse_event = create_mouse_event(
+        position,
+        pixel_scale_factor,
+        device_scale_factor,
+        get_modifiers_from_motion_event(event),
+    );
     host.send_mouse_move_event(Some(&mouse_event), false as i32);
 }
 
@@ -80,7 +98,12 @@ pub fn handle_pan_gesture(
     device_scale_factor: f32,
 ) {
     let position = event.get_position();
-    let mouse_event = create_mouse_event(position, pixel_scale_factor, device_scale_factor, get_modifiers_from_pan_gesture_event(event));
+    let mouse_event = create_mouse_event(
+        position,
+        pixel_scale_factor,
+        device_scale_factor,
+        get_modifiers_from_pan_gesture_event(event),
+    );
 
     let delta = event.get_delta();
     // Convert pan delta to scroll wheel delta
@@ -276,11 +299,11 @@ pub fn handle_key_event(host: &impl ImplBrowserHost, event: &Gd<InputEventKey>) 
 /// Returns the ASCII control character code for special keys
 fn get_control_char_code(key: Key) -> u16 {
     match key {
-        Key::BACKSPACE => 0x08, // BS (Backspace)
-        Key::TAB => 0x09,       // HT (Horizontal Tab)
+        Key::BACKSPACE => 0x08,             // BS (Backspace)
+        Key::TAB => 0x09,                   // HT (Horizontal Tab)
         Key::ENTER | Key::KP_ENTER => 0x0D, // CR (Carriage Return)
-        Key::ESCAPE => 0x1B,    // ESC
-        Key::DELETE => 0x7F,    // DEL
+        Key::ESCAPE => 0x1B,                // ESC
+        Key::DELETE => 0x7F,                // DEL
         _ => 0,
     }
 }
@@ -303,7 +326,13 @@ fn should_send_char_event(key: Key, unicode: u32) -> bool {
 fn is_modifier_key(key: Key) -> bool {
     matches!(
         key,
-        Key::SHIFT | Key::CTRL | Key::ALT | Key::META | Key::CAPSLOCK | Key::NUMLOCK | Key::SCROLLLOCK
+        Key::SHIFT
+            | Key::CTRL
+            | Key::ALT
+            | Key::META
+            | Key::CAPSLOCK
+            | Key::NUMLOCK
+            | Key::SCROLLLOCK
     )
 }
 
@@ -353,4 +382,3 @@ pub fn ime_cancel_composition(host: &impl ImplBrowserHost) {
 pub fn ime_finish_composing_text(host: &impl ImplBrowserHost, keep_selection: bool) {
     host.ime_finish_composing_text(keep_selection as i32);
 }
-

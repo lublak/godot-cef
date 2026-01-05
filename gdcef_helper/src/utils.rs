@@ -1,5 +1,5 @@
-use std::{io::Error, path::PathBuf};
 use process_path::get_executable_path;
+use std::{io::Error, path::PathBuf};
 
 pub fn get_framework_path() -> Result<PathBuf, Error> {
     let dylib_path = get_executable_path().unwrap();
@@ -9,13 +9,19 @@ pub fn get_framework_path() -> Result<PathBuf, Error> {
             // main app
             // from: Godot CEF.app/Contents/MacOS/Godot CEF
             // to:   Godot CEF.app/Contents/Frameworks/Chromium Embedded Framework.framework
-            return dylib_path.join("../../Frameworks").join("Chromium Embedded Framework.framework").canonicalize();
+            return dylib_path
+                .join("../../Frameworks")
+                .join("Chromium Embedded Framework.framework")
+                .canonicalize();
         }
         false => {
             // helper app
             // from: Godot CEF.app/Contents/Frameworks/Godot CEF Helper.app/Contents/MacOS/Godot CEF Helper
             // to:   Godot CEF.app/Contents/Frameworks/Chromium Embedded Framework.framework
-            return dylib_path.join("../../../..").join("Chromium Embedded Framework.framework").canonicalize();
+            return dylib_path
+                .join("../../../..")
+                .join("Chromium Embedded Framework.framework")
+                .canonicalize();
         }
     }
 }

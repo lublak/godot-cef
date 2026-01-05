@@ -6,15 +6,17 @@ mod utils;
 mod webrender;
 
 use cef::{
-    quit_message_loop, run_message_loop, BrowserSettings, ImplBrowser, ImplBrowserHost,
-    RequestContextSettings, WindowInfo,
+    BrowserSettings, ImplBrowser, ImplBrowserHost, RequestContextSettings, WindowInfo,
+    quit_message_loop, run_message_loop,
 };
 use cef_app::{CursorType, FrameBuffer};
 use godot::classes::image::Format as ImageFormat;
 use godot::classes::notify::ControlNotification;
 use godot::classes::texture_rect::ExpandMode;
 use godot::classes::{
-    DisplayServer, ITextureRect, Image, ImageTexture, InputEvent, InputEventKey, InputEventMouseButton, InputEventMouseMotion, InputEventPanGesture, RenderingServer, TextureRect
+    DisplayServer, ITextureRect, Image, ImageTexture, InputEvent, InputEventKey,
+    InputEventMouseButton, InputEventMouseMotion, InputEventPanGesture, RenderingServer,
+    TextureRect,
 };
 use godot::init::*;
 use godot::prelude::*;
@@ -325,8 +327,10 @@ impl CefTexture {
         self.app.device_scale_factor = Some(device_scale_factor);
         self.app.cursor_type = Some(cursor_type);
 
-        let mut client =
-            webrender::AcceleratedClientImpl::build(render_handler, self.app.cursor_type.clone().unwrap());
+        let mut client = webrender::AcceleratedClientImpl::build(
+            render_handler,
+            self.app.cursor_type.clone().unwrap(),
+        );
 
         cef::browser_host_create_browser_sync(
             Some(window_info),
@@ -359,7 +363,12 @@ impl CefTexture {
     }
 
     fn get_pixel_scale_factor(&self) -> f32 {
-        self.base().get_viewport().unwrap().get_stretch_transform().a.x
+        self.base()
+            .get_viewport()
+            .unwrap()
+            .get_stretch_transform()
+            .a
+            .x
     }
 
     fn get_device_scale_factor(&self) -> f32 {
@@ -542,11 +551,26 @@ impl CefTexture {
         };
 
         if let Ok(mouse_button) = event.clone().try_cast::<InputEventMouseButton>() {
-            input::handle_mouse_button(&host, &mouse_button, self.get_pixel_scale_factor(), self.get_device_scale_factor());
+            input::handle_mouse_button(
+                &host,
+                &mouse_button,
+                self.get_pixel_scale_factor(),
+                self.get_device_scale_factor(),
+            );
         } else if let Ok(mouse_motion) = event.clone().try_cast::<InputEventMouseMotion>() {
-            input::handle_mouse_motion(&host, &mouse_motion, self.get_pixel_scale_factor(), self.get_device_scale_factor());
+            input::handle_mouse_motion(
+                &host,
+                &mouse_motion,
+                self.get_pixel_scale_factor(),
+                self.get_device_scale_factor(),
+            );
         } else if let Ok(pan_gesture) = event.clone().try_cast::<InputEventPanGesture>() {
-            input::handle_pan_gesture(&host, &pan_gesture, self.get_pixel_scale_factor(), self.get_device_scale_factor());
+            input::handle_pan_gesture(
+                &host,
+                &pan_gesture,
+                self.get_pixel_scale_factor(),
+                self.get_device_scale_factor(),
+            );
         } else if let Ok(key_event) = event.try_cast::<InputEventKey>() {
             input::handle_key_event(&host, &key_event);
         }

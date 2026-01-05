@@ -35,7 +35,7 @@ mod mac {
         #[serde(rename = "LSMinimumSystemVersion")]
         ls_minimum_system_version: String,
         #[serde(rename = "LSUIElement")]
-        ls_ui_element: Option<String>
+        ls_ui_element: Option<String>,
     }
 
     const RESOURCES_PATH: &str = "Resources";
@@ -89,7 +89,7 @@ mod mac {
                 Some("1".to_string())
             } else {
                 None
-            }
+            },
         };
 
         plist::to_file_xml(resources_path.join("Info.plist"), &info_plist)?;

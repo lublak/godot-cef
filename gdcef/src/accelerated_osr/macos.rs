@@ -1,8 +1,8 @@
 use super::{NativeHandleTrait, RenderBackend, SharedTextureInfo, TextureImporterTrait};
 use cef::AcceleratedPaintInfo;
+use godot::classes::RenderingServer;
 use godot::classes::image::Format as ImageFormat;
 use godot::classes::rendering_server::TextureType;
-use godot::classes::RenderingServer;
 use godot::global::{godot_error, godot_print, godot_warn};
 use godot::prelude::*;
 use std::ffi::c_void;
@@ -110,7 +110,10 @@ pub struct NativeTextureImporter {
 impl NativeTextureImporter {
     pub fn new() -> Option<Self> {
         let device = metal::Device::system_default()?;
-        godot_print!("[AcceleratedOSR/macOS] Created Metal device: {}", device.name());
+        godot_print!(
+            "[AcceleratedOSR/macOS] Created Metal device: {}",
+            device.name()
+        );
         Some(Self { device })
     }
 
@@ -132,12 +135,19 @@ impl NativeTextureImporter {
             return Err(format!("Invalid dimensions: {}x{}", width, height));
         }
 
-        let (ios_width, ios_height) =
-            unsafe { (IOSurfaceGetWidth(io_surface), IOSurfaceGetHeight(io_surface)) };
+        let (ios_width, ios_height) = unsafe {
+            (
+                IOSurfaceGetWidth(io_surface),
+                IOSurfaceGetHeight(io_surface),
+            )
+        };
         if ios_width != width as usize || ios_height != height as usize {
             godot_warn!(
                 "[AcceleratedOSR/macOS] Dimension mismatch: IOSurface {}x{}, expected {}x{}",
-                ios_width, ios_height, width, height
+                ios_width,
+                ios_height,
+                width,
+                height
             );
         }
 
@@ -175,7 +185,9 @@ impl NativeTextureImporter {
 fn release_metal_texture(texture: *mut objc::runtime::Object) {
     use objc::{sel, sel_impl};
     if !texture.is_null() {
-        unsafe { let _: () = objc::msg_send![texture, release]; }
+        unsafe {
+            let _: () = objc::msg_send![texture, release];
+        }
     }
 }
 
@@ -226,7 +238,12 @@ impl TextureImporterTrait for GodotTextureImporter {
 
         let metal_texture = self
             .metal_importer
-            .import_io_surface(io_surface, texture_info.width, texture_info.height, texture_info.format)
+            .import_io_surface(
+                io_surface,
+                texture_info.width,
+                texture_info.height,
+                texture_info.format,
+            )
             .map_err(|e| godot_error!("[AcceleratedOSR/macOS] Metal import failed: {}", e))
             .ok()?;
 
@@ -254,7 +271,10 @@ impl TextureImporterTrait for GodotTextureImporter {
         };
 
         if !texture_rid.is_valid() {
-            godot_error!("[AcceleratedOSR/macOS] Created texture RID is invalid (handle: {})", native_handle);
+            godot_error!(
+                "[AcceleratedOSR/macOS] Created texture RID is invalid (handle: {})",
+                native_handle
+            );
             return None;
         }
 
