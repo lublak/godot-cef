@@ -722,4 +722,41 @@ impl CefTexture {
         let url_str: cef::CefStringUtf16 = url.to_string().as_str().into();
         frame.load_url(Some(&url_str));
     }
+
+    #[func]
+    /// Sends a message into the page via `window.onIpcMessage`.
+    ///
+    /// This is intentionally separate from [`eval`]: callers could achieve a
+    /// similar effect with `eval("window.onIpcMessage(...);")`, but this
+    /// helper:
+    /// - automatically escapes the string payload for safe JS embedding, and
+    /// - enforces a consistent IPC pattern (`window.onIpcMessage(message)`).
+    ///
+    /// Use this when you want structured IPC into the page, and `eval` when
+    /// you truly need arbitrary JavaScript execution.
+    pub fn send_ipc_message(&mut self, message: GString) {
+        let Some(browser) = self.app.browser.as_ref() else {
+            godot::global::godot_warn!("[CefTexture] Cannot send IPC message: no browser");
+            return;
+        };
+        let Some(frame) = browser.main_frame() else {
+            godot::global::godot_warn!("[CefTexture] Cannot send IPC message: no main frame");
+            return;
+        };
+
+        // Use serde_json for proper JSON encoding which handles all edge cases:
+        // - Unicode line terminators (U+2028, U+2029) that can break JS strings
+        // - Backticks, single quotes, and all control characters
+        // - Proper backslash and quote escaping
+        // The result includes surrounding quotes, so we use it directly.
+        let msg_str = message.to_string();
+        let json_msg = serde_json::to_string(&msg_str).unwrap_or_else(|_| "\"\"".to_string());
+
+        let js_code = format!(
+            r#"if (typeof window.onIpcMessage === 'function') {{ window.onIpcMessage({}); }}"#,
+            json_msg
+        );
+        let js_code_str: cef::CefStringUtf16 = js_code.as_str().into();
+        frame.execute_java_script(Some(&js_code_str), None, 0);
+    }
 }

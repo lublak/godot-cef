@@ -182,6 +182,30 @@ cef_texture.eval("updateScore(100)")
 cef_texture.eval("document.getElementById('player-name').innerText = 'Player1'")
 ```
 
+#### `send_ipc_message(message: String)`
+
+Sends a message from Godot to JavaScript. The message will be delivered via `window.onIpcMessage(msg)` callback if it is registered.
+
+```gdscript
+# Send a simple string message
+cef_texture.send_ipc_message("Hello from Godot!")
+
+# Send structured data as JSON using a Dictionary
+var payload := {"action": "update", "value": 42}
+cef_texture.send_ipc_message(JSON.stringify(payload))
+```
+
+In your JavaScript (running in the CEF browser):
+
+```javascript
+// Register the callback to receive messages from Godot
+window.onIpcMessage = function(msg) {
+    console.log("Received from Godot:", msg);
+    var data = JSON.parse(msg);
+    // Handle the message...
+};
+```
+
 ### Signals
 
 #### `ipc_message(message: String)`
