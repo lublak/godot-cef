@@ -1,12 +1,60 @@
 use cef::sys::cef_event_flags_t;
 use cef::{ImplBrowserHost, ImplFrame, KeyEvent, KeyEventType, MouseButtonType, MouseEvent};
 use godot::classes::{
-    InputEventKey, InputEventMouseButton, InputEventMouseMotion, InputEventPanGesture,
+    InputEvent, InputEventKey, InputEventMouseButton, InputEventMouseMotion, InputEventPanGesture,
+    Shortcut,
 };
 use godot::global::{Key, MouseButton, MouseButtonMask};
 use godot::prelude::*;
 
 mod keycode;
+
+/// Pre-defined shortcuts for editor commands.
+/// Initialized once per thread using thread_local.
+struct EditorShortcuts {
+    select_all: Gd<Shortcut>,            // Ctrl/Cmd+A
+    copy: Gd<Shortcut>,                  // Ctrl/Cmd+C
+    cut: Gd<Shortcut>,                   // Ctrl/Cmd+X
+    paste: Gd<Shortcut>,                 // Ctrl/Cmd+V
+    paste_and_match_style: Gd<Shortcut>, // Ctrl/Cmd+Shift+V
+}
+
+impl EditorShortcuts {
+    fn new() -> Self {
+        Self {
+            select_all: create_shortcut(Key::A, true, false),
+            copy: create_shortcut(Key::C, true, false),
+            cut: create_shortcut(Key::X, true, false),
+            paste: create_shortcut(Key::V, true, false),
+            paste_and_match_style: create_shortcut(Key::V, true, true),
+        }
+    }
+}
+
+fn with_shortcuts<F, R>(f: F) -> R
+where
+    F: FnOnce(&EditorShortcuts) -> R,
+{
+    let shortcuts = EditorShortcuts::new();
+    f(&shortcuts)
+}
+fn create_shortcut(key: Key, with_command_or_ctrl: bool, with_shift: bool) -> Gd<Shortcut> {
+    let mut key_event = InputEventKey::new_gd();
+    key_event.set_keycode(key);
+    key_event.set_command_or_control_autoremap(true);
+    if with_command_or_ctrl {
+        key_event.set_ctrl_pressed(true);
+    }
+    if with_shift {
+        key_event.set_shift_pressed(true);
+    }
+
+    let mut shortcut = Shortcut::new_gd();
+    let mut events = VarArray::new();
+    events.push(&key_event.to_variant());
+    shortcut.set_events(&events);
+    shortcut
+}
 
 /// Macro to extract keyboard modifier flags from any event with modifier methods
 macro_rules! keyboard_modifiers {
@@ -197,47 +245,38 @@ pub fn handle_key_event(
         return;
     }
 
-    // Handle select-all / copy / cut / paste.
-    if is_pressed && !is_echo {
-        let accel_down = if cfg!(target_os = "macos") {
-            event.is_meta_pressed()
-        } else {
-            event.is_ctrl_pressed()
-        };
-
-        let no_extra_modifiers = !event.is_shift_pressed()
-            && !event.is_alt_pressed()
-            && if cfg!(target_os = "macos") {
-                // Accelerator is Cmd (Meta). Disallow Ctrl as an "extra" modifier.
-                !event.is_ctrl_pressed()
-            } else {
-                // Accelerator is Ctrl. Disallow Meta/Win/Super as an "extra" modifier.
-                !event.is_meta_pressed()
-            };
-
-        if accel_down
-            && no_extra_modifiers
-            && let Some(frame) = frame
-        {
-            match keycode {
-                Key::A => {
-                    frame.select_all();
-                    return;
-                }
-                Key::C => {
-                    frame.copy();
-                    return;
-                }
-                Key::X => {
-                    frame.cut();
-                    return;
-                }
-                Key::V => {
-                    frame.paste();
-                    return;
-                }
-                _ => {}
+    // Handle shortcuts using pre-cached Shortcut objects
+    if is_pressed
+        && !is_echo
+        && let Some(frame) = frame
+    {
+        let input_event: Gd<InputEvent> = event.to_variant().to();
+        let handled = with_shortcuts(|shortcuts| {
+            if shortcuts.select_all.matches_event(&input_event) {
+                frame.select_all();
+                return true;
             }
+            if shortcuts.copy.matches_event(&input_event) {
+                frame.copy();
+                return true;
+            }
+            if shortcuts.cut.matches_event(&input_event) {
+                frame.cut();
+                return true;
+            }
+            // Check paste_and_match_style before paste (more specific shortcut first)
+            if shortcuts.paste_and_match_style.matches_event(&input_event) {
+                frame.paste_and_match_style();
+                return true;
+            }
+            if shortcuts.paste.matches_event(&input_event) {
+                frame.paste();
+                return true;
+            }
+            false
+        });
+        if handled {
+            return;
         }
     }
 
