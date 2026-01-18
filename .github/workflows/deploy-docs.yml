@@ -14,8 +14,6 @@ on:
       - 'package.json'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
-  release:
-    types: [published]
 
 permissions:
   contents: read
