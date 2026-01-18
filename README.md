@@ -8,7 +8,7 @@ A high-performance Chromium Embedded Framework (CEF) integration for Godot Engin
 ![GitHub Issues](https://img.shields.io/github/issues/dsh0416/godot-cef)
 ![GitHub Pull Requests](https://img.shields.io/github/issues-pr/dsh0416/godot-cef)
 
-## ✨ Features
+## Features
 
 - **Web Rendering in Godot** — Display any web content as a texture using the `CefTexture` node (extends `TextureRect`)
 - **Accelerated Off-Screen Rendering** — GPU-accelerated rendering using platform-native graphics APIs for maximum performance
@@ -17,7 +17,7 @@ A high-performance Chromium Embedded Framework (CEF) integration for Godot Engin
 - **Multi-Process Architecture** — Proper CEF subprocess handling for stability and consistency
 - **Remote Debugging** — Built-in Chrome DevTools support
 
-## 📋 Platform Support Matrix
+## Platform Support Matrix
 
 | Platform | DirectX 12 | Metal | Vulkan | Software Rendering |
 |----------|---------------|-----------------|-------------------|--------|
@@ -29,7 +29,7 @@ A high-performance Chromium Embedded Framework (CEF) integration for Godot Engin
 1. For Windows DirectX 12 backend, it requires at least Godot 4.6 beta 2 to work. Since Godot 4.5.1 contains a bug when calling `RenderingDevice.get_driver_resource` on DirectX 12 textures ALWAYS returns 0.
 2. On platforms where accelerated rendering is not yet implemented, the extension automatically falls back to software rendering using CPU-based frame buffers.
 
-## 📦 Installation
+## Installation
 
 ### For Users
 
@@ -39,7 +39,7 @@ Download the latest pre-built binaries from the [Releases](https://github.com/ni
 
 If you want to build from source or contribute to the project, follow the [build instructions](#-building-from-source) below.
 
-## 🔄 Comparison with Similar Projects
+## Comparison with Similar Projects
 
 There are several projects that bring web content into Godot. Here's how this project compares:
 
@@ -80,7 +80,7 @@ There are several projects that bring web content into Godot. Here's how this pr
 
 The motivation for developing this project comes from our work-in-progress game, [Engram](https://store.steampowered.com/app/3928930/_Engram/). While our first demo version benefited greatly from an interactive UI written in Vue.js using godot_wry, we encountered the limitations of a wry-based browser solution. Since other implementations have long struggled with GPU-accelerated OSR, we decided to create our own solution.
 
-## 🛠️ Building from Source
+## Building from Source
 
 ### Prerequisites
 
@@ -165,7 +165,7 @@ your-godot-project/
     └── godot_cef/
         └── bin/
             └── <platform>/
-                # macOS (aarch64-apple-darwin)
+                # macOS (universal-apple-darwin)
                 ├── Godot CEF.framework/     # GDExtension library bundle
                 └── Godot CEF.app/           # Helper app + CEF framework
 
@@ -186,7 +186,7 @@ your-godot-project/
 
 See `addons/godot_cef/godot_cef.gdextension` for the complete list of required files per platform.
 
-## 🚀 Usage
+## Usage
 
 Once installed, you can use the `CefTexture` node in your Godot scenes:
 
@@ -225,7 +225,7 @@ func _on_message_received(message: String):
     print("Received from web: ", message)
 ```
 
-## 📚 Documentation
+## Documentation
 
 For comprehensive API documentation, examples, and guides, visit the [full documentation](https://dsh0416.github.io/godot-cef/).
 
@@ -235,7 +235,7 @@ For comprehensive API documentation, examples, and guides, visit the [full docum
 - [**Signals**](https://dsh0416.github.io/godot-cef/api/signals.html) - Events and notifications
 - [**IME Support**](https://dsh0416.github.io/godot-cef/api/ime-support.html) - International text input
 
-## ⚠️ Limitations
+## Limitations
 
 ### One-Time Initialization Parameters
 
@@ -253,13 +253,13 @@ These parameters are passed as command-line switches to the CEF subprocess durin
 
 **Note:** Remote debugging is also configured once at startup and is automatically enabled only when running in debug builds or from the Godot editor for security purposes.
 
-## 📄 License
+## License
 
 MIT License — Copyright 2025-2026 Delton Ding
 
 See [LICENSE](LICENSE) for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [godot_wry](https://github.com/doceazedo/godot_wry)
 - [gdcef](https://github.com/Lecrapouille/gdcef)
