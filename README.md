@@ -33,7 +33,7 @@ A high-performance Chromium Embedded Framework (CEF) integration for Godot Engin
 
 ### For Users
 
-Download the latest pre-built binaries from the [Releases](https://github.com/nicholasccw/cef-godot/releases) page. Extract the addon to your Godot project's `addons/` folder and you're ready to go!
+Download the latest pre-built binaries from the [Releases](https://github.com/dsh0416/godot-cef/releases) page. Extract the addon to your Godot project's `addons/` folder and you're ready to go!
 
 ### For Developers
 
