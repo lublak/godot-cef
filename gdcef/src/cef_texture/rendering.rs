@@ -1,11 +1,61 @@
 use super::CefTexture;
 use cef::{ImplBrowser, ImplBrowserHost};
+use godot::classes::control::MouseFilter;
 use godot::classes::image::Format as ImageFormat;
-use godot::classes::{DisplayServer, Engine, Image};
+use godot::classes::texture_rect::ExpandMode;
+use godot::classes::{DisplayServer, Engine, Image, TextureRect};
 use godot::prelude::*;
 
 use crate::browser::RenderMode;
+use crate::utils::get_display_scale_factor;
 use crate::{cursor, render};
+
+struct DestBuffer<'a> {
+    data: &'a mut [u8],
+    width: u32,
+    height: u32,
+}
+
+struct PopupBuffer<'a> {
+    data: &'a [u8],
+    width: u32,
+    height: u32,
+    x: i32,
+    y: i32,
+}
+
+fn composite_popup(dst: &mut DestBuffer, popup: &PopupBuffer) {
+    let start_x = popup.x.max(0) as u32;
+    let start_y = popup.y.max(0) as u32;
+
+    let skip_x = if popup.x < 0 { (-popup.x) as u32 } else { 0 };
+    let skip_y = if popup.y < 0 { (-popup.y) as u32 } else { 0 };
+
+    let visible_width = (popup.width.saturating_sub(skip_x)).min(dst.width.saturating_sub(start_x));
+    let visible_height =
+        (popup.height.saturating_sub(skip_y)).min(dst.height.saturating_sub(start_y));
+
+    if visible_width == 0 || visible_height == 0 {
+        return;
+    }
+
+    for row in 0..visible_height {
+        let src_row = skip_y + row;
+        let dst_row = start_y + row;
+
+        let src_row_start = ((src_row * popup.width + skip_x) * 4) as usize;
+        let dst_row_start = ((dst_row * dst.width + start_x) * 4) as usize;
+
+        let copy_bytes = (visible_width * 4) as usize;
+
+        if src_row_start + copy_bytes <= popup.data.len()
+            && dst_row_start + copy_bytes <= dst.data.len()
+        {
+            dst.data[dst_row_start..dst_row_start + copy_bytes]
+                .copy_from_slice(&popup.data[src_row_start..src_row_start + copy_bytes]);
+        }
+    }
+}
 
 impl CefTexture {
     pub(super) fn get_max_fps(&self) -> i32 {
@@ -84,13 +134,79 @@ impl CefTexture {
             let Ok(mut fb) = frame_buffer.lock() else {
                 return;
             };
-            if !fb.dirty || fb.data.is_empty() {
+
+            let popup_metadata = self.app.popup_state.as_ref().and_then(|ps| {
+                ps.lock().ok().and_then(|popup| {
+                    if popup.visible && !popup.buffer.is_empty() {
+                        Some((
+                            popup.width,
+                            popup.height,
+                            popup.rect.x,
+                            popup.rect.y,
+                            popup.dirty,
+                        ))
+                    } else {
+                        None
+                    }
+                })
+            });
+
+            let popup_dirty = popup_metadata
+                .as_ref()
+                .is_some_and(|(_, _, _, _, dirty)| *dirty);
+
+            if !fb.dirty && !popup_dirty {
+                return;
+            }
+
+            if fb.data.is_empty() {
                 return;
             }
 
             let width = fb.width as i32;
             let height = fb.height as i32;
-            let byte_array = PackedByteArray::from(fb.data.as_slice());
+            let display_scale = get_display_scale_factor();
+
+            let final_data =
+                if let Some((popup_width, popup_height, popup_x, popup_y, _)) = popup_metadata {
+                    let popup_buffer = self
+                        .app
+                        .popup_state
+                        .as_ref()
+                        .and_then(|ps| ps.lock().ok().map(|popup| popup.buffer.clone()));
+
+                    if let Some(popup_buffer) = popup_buffer {
+                        let mut composited = fb.data.clone();
+                        let scaled_x = (popup_x as f32 * display_scale) as i32;
+                        let scaled_y = (popup_y as f32 * display_scale) as i32;
+                        composite_popup(
+                            &mut DestBuffer {
+                                data: &mut composited,
+                                width: fb.width,
+                                height: fb.height,
+                            },
+                            &PopupBuffer {
+                                data: &popup_buffer,
+                                width: popup_width,
+                                height: popup_height,
+                                x: scaled_x,
+                                y: scaled_y,
+                            },
+                        );
+                        if let Some(ps) = &self.app.popup_state
+                            && let Ok(mut popup) = ps.lock()
+                        {
+                            popup.mark_clean();
+                        }
+                        composited
+                    } else {
+                        fb.data.clone()
+                    }
+                } else {
+                    fb.data.clone()
+                };
+
+            let byte_array = PackedByteArray::from(final_data.as_slice());
 
             let image: Option<Gd<Image>> =
                 Image::create_from_data(width, height, false, ImageFormat::RGBA8, &byte_array);
@@ -135,6 +251,140 @@ impl CefTexture {
                 drop(state);
 
                 self.base_mut().set_texture(&new_texture_2d_rd);
+            }
+        }
+
+        #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+        if let Some(RenderMode::Accelerated { render_state, .. }) = &self.app.render_mode {
+            if let Ok(mut state) = render_state.lock()
+                && let Some((new_w, new_h)) = state.needs_popup_texture.take()
+            {
+                if let Some(old_rid) = state.popup_rd_rid {
+                    render::free_rd_texture(old_rid);
+                }
+
+                match render::create_rd_texture(new_w as i32, new_h as i32) {
+                    Ok((new_rid, new_texture_2d_rd)) => {
+                        state.popup_rd_rid = Some(new_rid);
+                        state.popup_width = new_w;
+                        state.popup_height = new_h;
+                        self.popup_texture_2d_rd = Some(new_texture_2d_rd);
+                    }
+                    Err(e) => {
+                        godot::global::godot_error!(
+                            "[CefTexture] Failed to create popup texture: {}",
+                            e
+                        );
+                    }
+                }
+            }
+
+            self.update_popup_overlay();
+        }
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    fn update_popup_overlay(&mut self) {
+        let popup_visible_info = self.app.popup_state.as_ref().and_then(|ps| {
+            ps.lock().ok().and_then(|popup| {
+                if popup.visible {
+                    Some((
+                        popup.rect.x,
+                        popup.rect.y,
+                        popup.rect.width,
+                        popup.rect.height,
+                    ))
+                } else {
+                    None
+                }
+            })
+        });
+
+        let accel_popup_info = if let Some(RenderMode::Accelerated { render_state, .. }) =
+            &self.app.render_mode
+        {
+            render_state.lock().ok().and_then(|state| {
+                if state.popup_rd_rid.is_some() && state.popup_width > 0 && state.popup_height > 0 {
+                    Some((
+                        state.popup_dirty,
+                        state.popup_has_content,
+                        state.popup_width,
+                        state.popup_height,
+                    ))
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        };
+
+        match (popup_visible_info, accel_popup_info) {
+            (
+                Some((x, y, _rect_w, _rect_h)),
+                Some((popup_dirty, popup_has_content, tex_width, tex_height)),
+            ) => {
+                if self.popup_overlay.is_none() {
+                    let mut overlay = TextureRect::new_alloc();
+                    overlay.set_expand_mode(ExpandMode::IGNORE_SIZE);
+                    overlay.set_mouse_filter(MouseFilter::IGNORE);
+                    let overlay_node: Gd<godot::classes::Node> = overlay.clone().upcast();
+                    self.base_mut().add_child(&overlay_node);
+                    self.popup_overlay = Some(overlay);
+                }
+
+                let display_scale = get_display_scale_factor();
+                let cef_texture_size = self.base().get_size();
+                let render_size = self
+                    .app
+                    .render_size
+                    .as_ref()
+                    .and_then(|s| s.lock().ok().map(|sz| (sz.width, sz.height)))
+                    .unwrap_or((0.0, 0.0));
+
+                if let Some(overlay) = &mut self.popup_overlay {
+                    if let Some(texture_2d_rd) = &self.popup_texture_2d_rd {
+                        overlay.set_texture(texture_2d_rd);
+                    }
+
+                    let scale_x = if render_size.0 > 0.0 {
+                        cef_texture_size.x * display_scale / render_size.0
+                    } else {
+                        display_scale
+                    };
+                    let scale_y = if render_size.1 > 0.0 {
+                        cef_texture_size.y * display_scale / render_size.1
+                    } else {
+                        display_scale
+                    };
+
+                    let local_x = x as f32 * scale_x;
+                    let local_y = y as f32 * scale_y;
+                    let local_width = tex_width as f32 * scale_x / display_scale;
+                    let local_height = tex_height as f32 * scale_y / display_scale;
+
+                    overlay.set_position(Vector2::new(local_x, local_y));
+                    overlay.set_size(Vector2::new(local_width, local_height));
+                    overlay.set_visible(popup_has_content);
+                }
+
+                if popup_dirty
+                    && let Some(RenderMode::Accelerated { render_state, .. }) =
+                        &self.app.render_mode
+                    && let Ok(mut state) = render_state.lock()
+                {
+                    state.popup_dirty = false;
+                }
+            }
+            _ => {
+                if let Some(overlay) = &mut self.popup_overlay {
+                    overlay.set_visible(false);
+                }
+                if let Some(RenderMode::Accelerated { render_state, .. }) = &self.app.render_mode
+                    && let Ok(mut state) = render_state.lock()
+                {
+                    state.popup_has_content = false;
+                }
             }
         }
     }

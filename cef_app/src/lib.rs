@@ -49,6 +49,61 @@ impl FrameBuffer {
     }
 }
 
+#[derive(Default, Clone)]
+pub struct PopupState {
+    pub visible: bool,
+    pub rect: PopupRect,
+    pub buffer: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub dirty: bool,
+}
+
+#[derive(Default, Clone, Copy)]
+pub struct PopupRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl PopupState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
+        if !visible {
+            self.buffer.clear();
+            self.width = 0;
+            self.height = 0;
+        }
+        self.dirty = true;
+    }
+
+    pub fn set_rect(&mut self, x: i32, y: i32, width: i32, height: i32) {
+        self.rect = PopupRect {
+            x,
+            y,
+            width,
+            height,
+        };
+        self.dirty = true;
+    }
+
+    pub fn update_buffer(&mut self, data: Vec<u8>, width: u32, height: u32) {
+        self.buffer = data;
+        self.width = width;
+        self.height = height;
+        self.dirty = true;
+    }
+
+    pub fn mark_clean(&mut self) {
+        self.dirty = false;
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GodotRenderBackend {
     #[default]
@@ -550,6 +605,7 @@ pub struct OsrRenderHandler {
     pub size: Arc<Mutex<PhysicalSize<f32>>>,
     pub frame_buffer: Arc<Mutex<FrameBuffer>>,
     pub cursor_type: Arc<Mutex<CursorType>>,
+    pub popup_state: Arc<Mutex<PopupState>>,
 }
 
 impl OsrRenderHandler {
@@ -559,6 +615,7 @@ impl OsrRenderHandler {
             device_scale_factor: Arc::new(Mutex::new(device_scale_factor)),
             frame_buffer: Arc::new(Mutex::new(FrameBuffer::new())),
             cursor_type: Arc::new(Mutex::new(CursorType::default())),
+            popup_state: Arc::new(Mutex::new(PopupState::new())),
         }
     }
 
@@ -576,5 +633,9 @@ impl OsrRenderHandler {
 
     pub fn get_cursor_type(&self) -> Arc<Mutex<CursorType>> {
         self.cursor_type.clone()
+    }
+
+    pub fn get_popup_state(&self) -> Arc<Mutex<PopupState>> {
+        self.popup_state.clone()
     }
 }

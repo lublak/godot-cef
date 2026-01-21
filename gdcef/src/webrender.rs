@@ -98,6 +98,20 @@ fn compute_screen_point(
     true as _
 }
 
+fn handle_popup_show(popup_state: &Arc<Mutex<cef_app::PopupState>>, show: ::std::os::raw::c_int) {
+    if let Ok(mut state) = popup_state.lock() {
+        state.set_visible(show != 0);
+    }
+}
+
+fn handle_popup_size(popup_state: &Arc<Mutex<cef_app::PopupState>>, rect: Option<&Rect>) {
+    if let Some(rect) = rect
+        && let Ok(mut state) = popup_state.lock()
+    {
+        state.set_rect(rect.x, rect.y, rect.width, rect.height);
+    }
+}
+
 wrap_render_handler! {
     pub struct SoftwareOsrHandler {
         handler: cef_app::OsrRenderHandler,
@@ -128,10 +142,26 @@ wrap_render_handler! {
             compute_screen_point(view_x, view_y, screen_x, screen_y)
         }
 
+        fn on_popup_show(
+            &self,
+            _browser: Option<&mut Browser>,
+            show: ::std::os::raw::c_int,
+        ) {
+            handle_popup_show(&self.handler.popup_state, show);
+        }
+
+        fn on_popup_size(
+            &self,
+            _browser: Option<&mut Browser>,
+            rect: Option<&Rect>,
+        ) {
+            handle_popup_size(&self.handler.popup_state, rect);
+        }
+
         fn on_paint(
             &self,
             _browser: Option<&mut Browser>,
-            _type_: PaintElementType,
+            type_: PaintElementType,
             _dirty_rects: Option<&[Rect]>,
             buffer: *const u8,
             width: ::std::os::raw::c_int,
@@ -147,9 +177,14 @@ wrap_render_handler! {
             let bgra_data = unsafe { std::slice::from_raw_parts(buffer, buffer_size) };
             let rgba_data = bgra_to_rgba(bgra_data);
 
-            if let Ok(mut frame_buffer) = self.handler.frame_buffer.lock() {
-                frame_buffer.update(rgba_data, width, height);
-            }
+            if type_ == PaintElementType::VIEW {
+                if let Ok(mut frame_buffer) = self.handler.frame_buffer.lock() {
+                    frame_buffer.update(rgba_data, width, height);
+                }
+            } else if type_ == PaintElementType::POPUP
+                && let Ok(mut popup_state) = self.handler.popup_state.lock() {
+                    popup_state.update_buffer(rgba_data, width, height);
+                }
         }
 
         fn on_ime_composition_range_changed(
@@ -209,6 +244,22 @@ wrap_render_handler! {
             compute_screen_point(view_x, view_y, screen_x, screen_y)
         }
 
+        fn on_popup_show(
+            &self,
+            _browser: Option<&mut Browser>,
+            show: ::std::os::raw::c_int,
+        ) {
+            handle_popup_show(&self.handler.popup_state, show);
+        }
+
+        fn on_popup_size(
+            &self,
+            _browser: Option<&mut Browser>,
+            rect: Option<&Rect>,
+        ) {
+            handle_popup_size(&self.handler.popup_state, rect);
+        }
+
         fn on_accelerated_paint(
             &self,
             _browser: Option<&mut Browser>,
@@ -222,12 +273,27 @@ wrap_render_handler! {
         fn on_paint(
             &self,
             _browser: Option<&mut Browser>,
-            _type_: PaintElementType,
+            type_: PaintElementType,
             _dirty_rects: Option<&[Rect]>,
-            _buffer: *const u8,
-            _width: ::std::os::raw::c_int,
-            _height: ::std::os::raw::c_int,
+            buffer: *const u8,
+            width: ::std::os::raw::c_int,
+            height: ::std::os::raw::c_int,
         ) {
+            if type_ == PaintElementType::POPUP
+                && !buffer.is_null()
+                && width > 0
+                && height > 0
+            {
+                let width = width as u32;
+                let height = height as u32;
+                let buffer_size = (width * height * 4) as usize;
+                let bgra_data = unsafe { std::slice::from_raw_parts(buffer, buffer_size) };
+                let rgba_data = bgra_to_rgba(bgra_data);
+
+                if let Ok(mut popup_state) = self.handler.popup_state.lock() {
+                    popup_state.update_buffer(rgba_data, width, height);
+                }
+            }
         }
 
         fn on_ime_composition_range_changed(
