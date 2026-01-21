@@ -10,8 +10,8 @@ use crate::accelerated_osr::{
     self, AcceleratedRenderState, GodotTextureImporter, PlatformAcceleratedRenderHandler,
 };
 use crate::browser::{
-    ConsoleMessageQueue, ImeCompositionQueue, ImeEnableQueue, LoadingStateQueue, MessageQueue,
-    PopupStateQueue, RenderMode, TitleChangeQueue, UrlChangeQueue,
+    ConsoleMessageQueue, DragEventQueue, ImeCompositionQueue, ImeEnableQueue, LoadingStateQueue,
+    MessageQueue, PopupStateQueue, RenderMode, TitleChangeQueue, UrlChangeQueue,
 };
 use crate::error::CefError;
 use crate::{render, res_protocol, webrender};
@@ -59,6 +59,8 @@ impl CefTexture {
         self.app.ime_enable_queue = None;
         self.app.ime_composition_range = None;
         self.app.console_message_queue = None;
+        self.app.drag_event_queue = None;
+        self.app.drag_state = Default::default();
 
         self.ime_active = false;
         self.ime_proxy = None;
@@ -199,6 +201,7 @@ impl CefTexture {
         let ime_enable_queue: ImeEnableQueue = Arc::new(Mutex::new(VecDeque::new()));
         let ime_composition_queue: ImeCompositionQueue = Arc::new(Mutex::new(None));
         let console_message_queue: ConsoleMessageQueue = Arc::new(Mutex::new(VecDeque::new()));
+        let drag_event_queue: DragEventQueue = Arc::new(Mutex::new(VecDeque::new()));
 
         let texture = ImageTexture::new_gd();
 
@@ -212,6 +215,7 @@ impl CefTexture {
                 ime_enable_queue: ime_enable_queue.clone(),
                 ime_composition_queue: ime_composition_queue.clone(),
                 console_message_queue: console_message_queue.clone(),
+                drag_event_queue: drag_event_queue.clone(),
             },
         );
 
@@ -245,6 +249,7 @@ impl CefTexture {
         self.app.ime_enable_queue = Some(ime_enable_queue);
         self.app.ime_composition_range = Some(ime_composition_queue);
         self.app.console_message_queue = Some(console_message_queue);
+        self.app.drag_event_queue = Some(drag_event_queue);
 
         Ok(browser)
     }
@@ -305,6 +310,7 @@ impl CefTexture {
         let ime_enable_queue: ImeEnableQueue = Arc::new(Mutex::new(VecDeque::new()));
         let ime_composition_queue: ImeCompositionQueue = Arc::new(Mutex::new(None));
         let console_message_queue: ConsoleMessageQueue = Arc::new(Mutex::new(VecDeque::new()));
+        let drag_event_queue: DragEventQueue = Arc::new(Mutex::new(VecDeque::new()));
 
         let mut client = webrender::AcceleratedClientImpl::build(
             render_handler,
@@ -317,6 +323,7 @@ impl CefTexture {
                 ime_enable_queue: ime_enable_queue.clone(),
                 ime_composition_queue: ime_composition_queue.clone(),
                 console_message_queue: console_message_queue.clone(),
+                drag_event_queue: drag_event_queue.clone(),
             },
         );
 
@@ -356,6 +363,7 @@ impl CefTexture {
         self.app.ime_enable_queue = Some(ime_enable_queue);
         self.app.ime_composition_range = Some(ime_composition_queue);
         self.app.console_message_queue = Some(console_message_queue);
+        self.app.drag_event_queue = Some(drag_event_queue);
 
         Ok(browser)
     }
