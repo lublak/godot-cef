@@ -102,6 +102,10 @@ For comprehensive API documentation, examples, and guides, visit the [full docum
 
 </details>
 
+## Limitations
+
+**Video and audio playback:** CEF video playback and audio playback (H.264 and MP3 codecs support) are limited by proprietary code in the Chromium/CEF stack. You can replace them with av1 and opus codecs. These constraints come from upstream and cannot be addressed within this project.
+
 ## Building from Source
 
 For detailed build instructions, see [CONTRIBUTING.md](CONTRIBUTING.md#development-setup).
