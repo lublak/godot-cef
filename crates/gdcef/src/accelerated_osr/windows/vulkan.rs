@@ -492,7 +492,7 @@ impl VulkanTextureImporter {
 
         // Create new image with external memory flag
         let mut external_memory_info = vk::ExternalMemoryImageCreateInfo::default()
-            .handle_types(vk::ExternalMemoryHandleTypeFlags::D3D12_RESOURCE);
+            .handle_types(vk::ExternalMemoryHandleTypeFlags::D3D11_TEXTURE);
 
         let image_info = vk::ImageCreateInfo::default()
             .push_next(&mut external_memory_info)
@@ -555,7 +555,7 @@ impl VulkanTextureImporter {
             let result = unsafe {
                 (self.get_memory_win32_handle_properties)(
                     self.device,
-                    vk::ExternalMemoryHandleTypeFlags::D3D12_RESOURCE,
+                    vk::ExternalMemoryHandleTypeFlags::D3D11_TEXTURE,
                     handle,
                     &mut handle_props,
                 )
@@ -575,7 +575,7 @@ impl VulkanTextureImporter {
 
         // Import the memory with the Win32 handle
         let mut import_info = vk::ImportMemoryWin32HandleInfoKHR::default()
-            .handle_type(vk::ExternalMemoryHandleTypeFlags::D3D12_RESOURCE)
+            .handle_type(vk::ExternalMemoryHandleTypeFlags::D3D11_TEXTURE)
             .handle(handle.0 as isize);
 
         let mut dedicated_info = vk::MemoryDedicatedAllocateInfo::default().image(image);
