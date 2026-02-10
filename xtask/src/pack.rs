@@ -1,6 +1,6 @@
 //! Pack command - assembles all platform artifacts into a single Godot addon
 
-use crate::bundle_common::copy_directory;
+use crate::bundle_common::{copy_directory, required_paths_for_platform, validate_required_paths};
 use std::fs;
 use std::path::Path;
 
@@ -30,6 +30,8 @@ fn copy_platform_artifacts(
     }
 
     copy_directory(&src_dir, &dst_dir)?;
+    let (required_files, required_dirs) = required_paths_for_platform(platform_target);
+    validate_required_paths(&dst_dir, required_files, required_dirs)?;
 
     println!("  Copied: {} -> bin/{}/", artifact_name, platform_target);
     Ok(true)
