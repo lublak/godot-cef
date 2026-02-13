@@ -1,5 +1,7 @@
 ---
 layout: home
+title: Godot CEF - Godot 的 Chromium Embedded Framework 集成
+description: 面向 Godot Engine 4.5+ 的高性能 Chromium Embedded Framework 集成，支持 GPU 加速渲染、双向 IPC 与跨平台一致性。
 
 hero:
   name: Godot CEF

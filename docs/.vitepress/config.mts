@@ -5,15 +5,30 @@ export default withMermaid(defineConfig({
   title: 'Godot CEF',
   description: 'High-performance Chromium Embedded Framework integration for Godot Engine',
   base: '/',
+  cleanUrls: true,
+  sitemap: {
+    hostname: 'https://godotcef.org'
+  },
+  head: [
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:site_name', content: 'Godot CEF' }],
+    ['meta', { property: 'og:image', content: 'https://godotcef.org/icon.png' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:image', content: 'https://godotcef.org/icon.png' }]
+  ],
 
   locales: {
     root: {
       label: 'English',
       lang: 'en',
+      title: 'Godot CEF',
+      description: 'High-performance Chromium Embedded Framework integration for Godot Engine',
     },
     zh_CN: {
       label: '简体中文',
       lang: 'zh-CN',
+      title: 'Godot CEF',
+      description: '面向 Godot Engine 的高性能 Chromium Embedded Framework 集成',
       themeConfig: {
         nav: [
           { text: '首页', link: '/zh_CN/' },

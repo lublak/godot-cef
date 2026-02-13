@@ -1,5 +1,7 @@
 ---
 layout: home
+title: Godot CEF - Chromium Embedded Framework Integration for Godot
+description: High-performance Chromium Embedded Framework integration for Godot Engine 4.5+, with GPU-accelerated rendering, IPC, and cross-platform support.
 
 hero:
   name: Godot CEF

@@ -1,3 +1,8 @@
+---
+title: Godot CEF API Reference
+description: Complete API reference for the CefTexture node in Godot CEF, including properties, methods, signals, audio capture, IME, drag-and-drop, downloads, and security baseline.
+---
+
 # API Reference
 
 This section provides comprehensive documentation for the `CefTexture` node, which allows you to render web content as textures in your Godot scenes.

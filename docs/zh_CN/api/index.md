@@ -1,3 +1,8 @@
+---
+title: Godot CEF API 参考
+description: Godot CEF 的 CefTexture 节点完整 API 文档，涵盖属性、方法、信号、音频捕获、输入法、拖放、下载与生产环境安全基线。
+---
+
 # API 参考
 
 本节提供 `CefTexture` 节点的完整文档。`CefTexture` 可在 Godot 场景中将网页内容渲染为纹理（Texture）。
