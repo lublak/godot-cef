@@ -4,7 +4,7 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 export default withMermaid(defineConfig({
   title: 'Godot CEF',
   description: 'High-performance Chromium Embedded Framework integration for Godot Engine',
-  base: '/godot-cef/',
+  base: '/',
 
   locales: {
     root: {
